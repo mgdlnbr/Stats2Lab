@@ -1,0 +1,91 @@
+---
+title: "BlackFriday_project"
+author: "Magdalena"
+date: "22 MÃ¤rz 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##PROJEKTARBEIT ZU ALGORITHMIK & STATISTIK FÜR DATA SCIENCE 2 LAB 
+
+ 
+##“Black Friday – eine statistische Analyse der Verkaufszahlen” 
+
+### Beschreibung des Datensatzes.  
+
+Im Datensatz Black Friday befinden sich 537577 Beobachtungen für 12 Variablen, u.a. Geschlecht, Alter, Beruf, Beziehungsstatus und Kaufkraft. Die Variablen  Age, Occupation, City_Category, Stay_In_Current_City_Years Product_Categories  sind als Faktoren  codiert. Die genauen Definitionen der einzelnen Faktoren (z.B. City_Category A,B &C) sind nicht genau definiert.  
+
+Magdalena: R Output einfügen 
+```{R, echo = F}
+data <- read.csv("BlackFriday.csv")
+summary(data)
+```
+
+##Hintergrundinformationen zum Datensatz 
+
+Der Datensatz wurde bereitgestellt durch einen Hackathon der Firma Analytics Vidhya  (https://datahack.analyticsvidhya.com/contest/black-friday/) und heruntergeladen über Kaggle.com  (https://www.kaggle.com/mehdidag/black-friday). 
+
+“Nothing ever becomes real till it is experienced.” - John Keats 
+
+##Die statistische Lernaufgabe 
+
+(für die der Datensatz verwendet wird. (Regression oder Klassifizierung.) 
+
+    - Regression / versuch den Regressor (Höhe des Einkaufes) durch die Prädiktoren zu beschreiben 
+    - Segmentierung der Customerbase mittles Clustering
+    - Klassifizierung z.B. nach Stadt, Berufsgruppe etc. 
+
+
+#Ein Grund, warum die statistische Lernaufgabe auf diesen Datensatz angewendet wird 
+
+Außer für den Abschluss dieses Projekts, haben wir uns für den Black Friday Datensatz entschieden, da alle von uns einen “wirtschaftlichen” Hintergrund haben (Studium oder Beruf) und uns erhoffen, die Modelle, die wir erstellen auch verstehen und interpretieren können. 
+
+Der Datensatz ist ein Beispiel für eine Transaktionsliste für einen Einzelhandelsshop. Der Shop möchte das Verhalten seiner Kunden zu ihren Produkten besser verstehen. Wir sind der Meinung, dass dies ein realistisches Szenario ist, welches wir auch später in unserem beruflichen Werdegang gut gebrauchen können. So kann beispielsweise ein  
+
+
+# Nachweis, dass die Daten in R geladen werden können 
+
+```{R}
+summary(data)
+data[1:4,]
+```
+
+# Nachweis, dass die Daten in R modelliert werden können 
+
+(Passen Sie entweder lm() (Regression) oder glm() (Klassifizierung) an, rufen Sie dann predict() auf und geben Sie die ersten Werte zurück. Möglicherweise müssen Sie vor diesem Schritt eine Datenbereinigung durchführen.) 
+
+```{R}
+library(caret)
+
+inTrain <- createDataPartition(y = data$Purchase,p = .1, list = FALSE)
+training <- data[ inTrain,]
+testing  <- data[-inTrain,]
+
+model_test <- train(
+  Purchase ~ ., 
+  data = training, 
+  method = "lm", 
+  preProc = c("center", "scale"),
+  na.action = na.pass 
+)
+
+pred_test <- predict(model_test, training)
+pred_test
+str(pred_test)
+##summary(data)
+
+pred_test <- (unname(pred_test))
+pred_test[1:10]
+##pred_test
+
+##training$Purchase
+
+```
+
+
+
