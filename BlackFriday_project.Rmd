@@ -1,13 +1,12 @@
 ---
-title: "BlackFriday_project"
-author: "Magdalena"
-date: "22 Maerz 2019"
+#title: "BlackFriday_project"
+#author: "Magdalena"
+#date: "22 Maerz 2019"
 output:
   html_document:
     df_print: paged
-  pdf_document: default
   word_document: default
-
+  pdf_document: default
 header-includes:
   \AtBeginDocument{\let\maketitle\relax}
 ---
@@ -33,8 +32,7 @@ Jochen Paul Hollich: 1810837475 \n
 
 Der Datensatz Black Friday enthält Daten über den Warenkorb von Kunden bei einem Onlineshop. Im Datensatz befinden sich 537577 Beobachtungen für 12 Variablen, u.a. Geschlecht, Alter, Beruf, Beziehungsstatus und Kaufkraft. Die Variablen Age, Occupation, City_Category, Stay_In_Current_City_Years Product_Categories sind als Faktoren codiert. Die genauen Definitionen der einzelnen Faktoren (z.B. City_Category A,B &C) sind nicht genau definiert.  
 
-Magdalena: R Output einfügen 
-```{R, echo = F}
+```{R, echo = F, results = 'hide'}
 data <- read.csv("BlackFriday.csv")
 summary(data)
 hist(data$Purchase)
@@ -89,5 +87,6 @@ pred_test <- predict(model_test, training)
 pred_test[1:10]
 
 ```
+
 
 
