@@ -1,0 +1,19 @@
+library(caret)
+
+set.seed(1234)
+
+inTrain <- createDataPartition(
+  y = data$Purchase,
+  ## Purchase ist dependent Variable
+  p = .8, 
+  ##  Verhältnis traing - test set
+  list = FALSE)
+  
+training <- data[ inTrain,]
+testing  <- data[-inTrain,]
+
+nrow(training)
+nrow(testing)
+
+training$Product_ID <- NULL #löschen von Product_ID weil sonst Fehlermeldung
+testing$Product_ID <- NULL
