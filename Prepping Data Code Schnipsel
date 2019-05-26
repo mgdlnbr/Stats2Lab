@@ -1,0 +1,11 @@
+data <- read.csv("BlackFriday.csv")
+
+#Anzahl der NAs 
+sapply(data, function(x) sum(is.na(x)))
+
+#NAs nur in den Spalten "Product Category_X" -> durch 0 ersetzen
+data[is.na(data)] <- 0
+
+sum(is.na(data))
+
+data$Product_ID <- NULL #löschen von Product_ID weil sonst Fehlermeldung
