@@ -1,6 +1,7 @@
 library(caret)
 
 set.seed(1234)
+data <- read.csv("BlackFriday.csv")
 
 inTrain <- createDataPartition(
   y = data$Purchase,
