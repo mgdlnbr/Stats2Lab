@@ -15,7 +15,7 @@ header-includes:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Projektarbeit zu Algorithmik & Statistik für Data Science 2 Lab
+#Projektarbeit zu Algorithmik & Statistik f?r Data Science 2 Lab
  
  
 
@@ -23,20 +23,26 @@ knitr::opts_chunk$set(echo = TRUE)
 data <- read.csv("BlackFriday.csv")
 ```
 
+
+
 # Vorhersage des Sales Volumen 
 
-Es soll für diesen Datensatz das Sales Volumen pro Customer (Variable Purchase) vorhergesagt werden. Dafür werden die folgenden Modelle aufgestellt:
+Es soll f?r diesen Datensatz das Sales Volumen pro Customer (Variable Purchase) vorhergesagt werden. Daf?r werden die folgenden Modelle aufgestellt:
 * einfache lineare Regression
 * lineare Regression mit Resampling
 * Random Forest Regression
 
-Im Anschluss wird der Datensatz nach auffälligen Clustern untersucht, und für diese Cluster jeweils ein eigenes Regressions Modell erstellt. Damit soll der RMSE für die Vorhersage für den jeweiligen Cluster gesenkt werden.
+Im Anschluss wird der Datensatz nach auff?lligen Clustern untersucht, und f?r diese Cluster jeweils ein eigenes Regressions Modell erstellt. Damit soll der RMSE f?r die Vorhersage f?r den jeweiligen Cluster gesenkt werden.
 
 ## Untersuchung der Daten 
 
-Eine der Annahmen für ein lineares Regressionsmodell ist die Normalverteilung der Residuen. Dies wird nach erstellen des 1. Modells nocheinmal gecheckt, fürs erste wird aber das Histogram der dependent Variable Purchase betrachtet:
+```{R Data Plot}
+plot(data$Purchase)
+```
 
-Die folgenden Annahmen werden für eine lineare Regression vorausgesetzt:
+Eine der Annahmen f?r ein lineares Regressionsmodell ist die Normalverteilung der Residuen. Dies wird nach erstellen des 1. Modells nocheinmal gecheckt, f?rs erste wird aber das Histogram der dependent Variable Purchase betrachtet:
+
+Die folgenden Annahmen werden f?r eine lineare Regression vorausgesetzt:
 * linearer Zusammenhang zwischen Input & Output Variablen
 * Normalverteilung der Residuen
 * Gleichbleibende
@@ -48,12 +54,17 @@ library(caret)
 hist(data$Purchase)
 
 ```
-Das Histogram der Variable data$Purchase zeigt eine annähernde Normalverteilung mit einem leichten Skew nach links. 
+Das Histogram der Variable data$Purchase zeigt eine ann?hernde Normalverteilung mit einem leichten Skew nach links. 
+
 ```{R}
-purchase_scaled <- scale(data$Occupation, center = TRUE, scale = TRUE)
+ks.test(data$Purchase, "pnorm")
+ks.test(purchase_scaled)
+```
+```{R}
+purchase_scaled <- scale(data$Purchase, center = TRUE, scale = TRUE)
 hist(purchase_scaled)
 ```
-Eine Skalierung des Datensatzes zeigt keine Annäherung an die Normalfunktion, deshalb wird für die folgenden Modelle im Preprocessing nicht skaliert. Als Kenngröße für die Evaluierung der Modelle wird der RMSE verwendet. Der RMSE gewichtet relativ große Fehler in der Prediction stärker als z.B. der MAE.
+Eine Skalierung des Datensatzes zeigt eine gr??ere Ann?herung an die Normalfunktion, deshalb wird f?r die folgenden Modelle im Preprocessing skaliert. Als Kenngr??e f?r die Evaluierung der Modelle wird der RMSE verwendet. Der RMSE gewichtet relativ gro?e Fehler in der Prediction st?rker als z.B. der MAE.
 
 
 
@@ -67,7 +78,7 @@ data[is.na(data)] <- 0
 
 sum(is.na(data))
 
-data$Product_ID <- NULL #löschen von Product_ID weil sonst Fehlermeldung
+data$Product_ID <- NULL #l?schen von Product_ID weil sonst Fehlermeldung
 
 ```
 NAs sind nur in den Spalten "Product_Category_1" & "Product_Category_2" vorhanden. Diese sollen durch eine Null ersetzt werden.
@@ -84,7 +95,7 @@ inTrain <- createDataPartition(
   y = data$Purchase,
   ## Purchase ist dependent Variable
   p = .8, 
-  ##  Verhältnis traing - test set
+  ##  Verh?ltnis traing - test set
   list = FALSE
 )
 training <- data[ inTrain,]
@@ -95,6 +106,7 @@ testing  <- data[-inTrain,]
 ```
 ## Einfaches lineares Regressionsmodell
 
+Als Benchmark fuer alle weiteren Modelle, wird ein einfaches lineares Modell der Variable "Purchase" gefittet. Hierfür wird "Purchase" skaliert.
 ```{R einfache lineare Regression}
 
 ##Fitten eines einfachen linearen Regressionsmodells
@@ -102,6 +114,7 @@ model_lin_regression <- train(
   Purchase ~ ., 
   data = training, 
   method = "lm", 
+  preProc = c('center', 'scale'),
   na.action = na.pass
 )
 
@@ -128,11 +141,29 @@ ggplot(data = pred, aes(predicted, purchase)) +
      geom_smooth(aes(x = predicted, y = purchase))
   
 ```
-Der RMSE ist mit 4626 ziemmlich hoch. Dieser Wert soll nun in den folgenden Modellen verbessert werden.
+Der RMSE ist mit 4626 ziemmlich hoch. Dieser Wert soll nun in den folgenden Modellen verbessert werden. 
+
+Der folgende Plot zeigt die Feature Importance, daher welche Wichtigkeit das Modell den einzelnen Featuren beimisst. Am stärkestne positiv beeinflusst der Kauf eines Produktes aus der Kategorie 3, am stärkesten negativ der Kauf eines Produktes der Kategorie 1. Die Varible "Stay in current city in years" bzw die Ausprägungen der Faktor Levels, hat fast keinen Einfluss auf die Variable "Purchase".
+
+```{R plot Freature importances, echo = F}
+
+coefficients <- unname(coef(model_lin_regression$finalModel))
+#model_lin_regression$finalModel
+coefficients <- coefficients[-1]
+features<- c("UserID","Gender male","Age 18-25", "Age 26-35", "Age 36-45", "Age 46-50", "Age 51-55", "Age 55+", "Occupation", "City B", "City C", "Stay in current city: 1 Year", "Stay in current city: 2 Years", "Stay in current city: 3 Years", "Stay in current city: 4 Years+", "Marital Status", "Product Category 1", "Product Category 2", "Product Category 3")
+
+
+lm_model <- data.frame(coefficients,features)
+#lm_model
+
+ggplot(data=lm_model, aes(x=features,y=coefficients))+geom_bar(position="stack", stat="identity")+
+  xlab("Feature") + ylab("Weight")+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
 
 ## Lineare Regression mit Resampling
 
-Für das folgende Regression wird Resampling mit 5-facher Cross-valdiation angewendet.
+Fuer das folgende Regression wird Resampling mit 5-facher Cross-valdiation angewendet.
 
 ```{R Modell mit Resampling}
 ##Modell mit Resampling
@@ -145,6 +176,7 @@ model_lin_regression_resampled <- train(
   Purchase ~ ., 
   data = training, 
   method = "lm", 
+  preProc = c('center', 'scale'),
   tuneLength = 15,
   na.action = na.pass,
   trControl = ctrl
@@ -166,7 +198,7 @@ lin_model_resampled_res <- resid(model_lin_regression_resampled)
 Durch das Resampling hat sich der RMSE nicht geändert. 
 
 ## Random Forest Regression (mit Resampling)
-Für das Random Forest Modell muss ein kleinerer Trainingsdatensatz verwendet werden, da sonst die maximal erlaubte File Größe von 1.4 Gb überschritten wird. Dafür werden random Samples aus dem Training & Testing Datensatz gezogen, ebenfalls im Verhältnis 80:20. Der kleinere Datensatz muss dann für die Evaluierung des RF-Modells mit den vorherigen Mo
+Fuer das Random Forest Modell muss ein kleinerer Trainingsdatensatz verwendet werden, da sonst die maximal erlaubte File Groesse von 1.4 Gb ueberschritten wird. Dafuer werden random Samples aus dem Training & Testing Datensatz gezogen, ebenfalls im Verhaeltnis 80:20. Der kleinere Datensatz muss dann fuer die Evaluierung des RF-Modells mit den vorherigen Model.
 
 ```{R Random Forest}
 #Sampling aus Training/Test Datensatz
@@ -182,6 +214,7 @@ model_RF <- train(
   Purchase ~ ., 
   data = rf_training, 
   method = "rf", 
+  preProc = c('center', 'scale'),
   trControl = ctrl, 
   tuneGrid =tune)
 
@@ -194,21 +227,21 @@ pred_RF_test <- predict(model_RF,rf_testing)
 RF_rmse_test <- RMSE(rf_testing$Purchase,pred_RF_test)
 RF_rmse_train <- RMSE(rf_training$Purchase,pred_RF_train)
 ```
-Durch dieses Modell konnte der RMSE nochmal um einiges Verbessert werden. Wenn das Modell auf den Trainingsdatensatz angewendet wird ist der RMSE nochmal kleiner als beim Testdatensatz. Das weißt auf eventuelles Overfitting des Modells hin. Da der Datensatz aber sonst recht homogen verteilt ist, wird das in Kauf genommen. 
+Durch dieses Modell konnte der RMSE nochmal um einiges Verbessert werden. Wenn das Modell auf den Trainingsdatensatz angewendet wird ist der RMSE nochmal kleiner als beim Testdatensatz. Das weisst auf eventuelles Overfitting des Modells hin. Da der Datensatz aber sonst recht homogen verteilt ist, wird das in Kauf genommen. 
 
-ToDo: nochmal mit größeren Datensätzen laufen lassen
 
 ```{R RF Plots}
 par(mfrow=c(1,2))
 plot(model_RF$finalModel)
 plot(model_RF)
 ```
-Der linke Plot zeigt, wie sehr sich der Error im Laufe der getesteten Bäume verringert.
-Der rechte Plot zeigt die Verringerung des RMSE durch das tuning der Variable "mtry", wobei "mtry" die Anzahl der Variablen die zufällig pro Split gesamplet werden sind. Je höher "mtry" desto besser der Regressionsbaum
+Der linke Plot zeigt, wie sehr sich der Error im Laufe der getesteten B?ume verringert.
+Der rechte Plot zeigt die Verringerung des RMSE durch das tuning der Variable "mtry", wobei "mtry" die Anzahl der Variablen die zufaellig pro Split gesamplet werden sind. Je hoeher "mtry" desto besser der Regressionsbaum
 
-## Modelle für einzelne Customer Segmente 
 
-Durch die die oben getesteten Modelle konnte die Prediction der Variable "Purchase" zwar verbessert werden, der RMSE ist aber immer noch recht hoch. Deswegen sollen für einzelne Customer Segmente jeweils eigene Modelle erstellt werden.
+## Modelle fuer einzelne Customer Segmente 
+
+Durch die die oben getesteten Modelle konnte die Prediction der Variable "Purchase" zwar verbessert werden, der RMSE ist aber immer noch recht hoch. Deswegen sollen f?r einzelne Customer Segmente jeweils eigene Modelle erstellt werden.
  
 
 ```{R Segment_Modelle, echo = FALSE}
@@ -253,10 +286,10 @@ require(gridExtra)
 grid.arrange(plot_count, plot_mean, ncol=2)
 
 ```
-Der obige Plot zeigt, dass männliche Customer in jeder Altersklasse eine durchschnittlich höhere Kaufkraft haben als Frauen (Frauen sind im Datensatz unterrepräsentiert; Verhältnis Männer/Frauen: 4:1,3). Besonders auffallend ist der Peak in der Altergruppe 26-35 bei der Anzahl der Purchases bei männlichen Customers, im Mean (rechter Plot), ist dieser allerdings nicht mehr so signifikant.
+Der obige Plot zeigt, dass maennliche Customer in jeder Altersklasse eine durchschnittlich h?here Kaufkraft haben als Frauen (Frauen sind im Datensatz unterrepr?sentiert; Verh?ltnis M?nner/Frauen: 4:1,3). Besonders auffallend ist der Peak in der Altergruppe 26-35 bei der Anzahl der Purchases bei maennlichen Customers, im Mean (rechter Plot), ist dieser allerdings nicht mehr so signifikant, daher es ist mit einer hohen Varianz zu rechnen
 
 ```{R, echo = F}
-plot(data)
+#plot(data)
 
 city_A <- subset(data,City_Category == "A")
 city_B <- subset(data,City_Category == "B")
@@ -279,9 +312,9 @@ ggplot(city.mean, aes(Gender, value)) + geom_bar(aes(fill = variable),
   xlab("City") + ylab("Purchas(mean)")
 
 ```
-Bei der Segmentierung der mean Purchases nach Städten und männlich/weiblich, sieht man dass es besonders Männer in den einzelnen Städten unterschiedlich viel ausgeben.
+Bei der Segmentierung der mean Purchases nach Staedten und maennlich/weiblich, sieht man dass es besonders Maenner in den einzelnen Staedten unterschiedlich viel ausgeben.
 
-Im folgenden Modell wird jeweils ein Random-Forest Modell für weibliche & männliche Customer erstellt
+Im folgenden Modell wird jeweils ein Random-Forest Modell fuer weibliche & maennliche Customer erstellt
 
 ```{R Segment Modelle Trainings/Test Split}
 #Trainings/Test Split -> subset aus dem originalen Trainings/Test Split
@@ -302,6 +335,7 @@ RF_female <- train(
   Purchase ~ ., 
   data = fem_training, 
   method = "rf", 
+  preProc = c('center', 'scale'),
   trControl = ctrl, 
   tuneGrid =tune)
 
@@ -310,6 +344,7 @@ RF_male <- train(
   Purchase ~ ., 
   data = male_training, 
   method = "rf", 
+  preProc = c('center', 'scale'),
   trControl = ctrl, 
   tuneGrid =tune)
 
@@ -323,6 +358,7 @@ RF_rmse_male <- RMSE(male_testing$Purchase,pred_RF_male)
 
 
 ```
+
 
 ## Evaluierung der Modelle
 
@@ -338,15 +374,25 @@ plot(scores)
 ggplot(data=eval, aes(x=names,y=scores))+geom_bar(position="stack", stat="identity")+ xlab("Model") + ylab("RMSE")+theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
+
 ```
 ```{R}
 colnames(eval) <- c("Model","RMSE")
 knitr::kable(eval)
 
 ```
-Der Vergleich aller 5 Modelle Zeigt, dass für die allgemeinen Modelle das Random Forest Modell am besten performt. Segmentiert man den Datensatz in männliche und weibliche Customer und erstellt zwei separate Modelle, verbessert sich der RMSE jeweils noch mehr. 
-In den obigen Boxplots ist zu sehen, dass bei männlichen Customers in der Alterklasse 26-35 zwar eine besonders große Anzahl von Purchases vorkommen, diese sich aber im Mean von den anderen Alterklassen nicht mehr so stark unterscheiden. Daher ist anzunehmen, das in dieser Alterklasse eine besonder hohe Varianz zu erwarten ist, die durch das lineare Modell nicht ausreichend repräsentiert wurde. 
-Eine Segmentierung der Customer macht dahingegen Sinn, da man im Internet & Social Media die Personengruppe, der gezielt Werbung vorgespielt wird teilweise sehr genau eingrenzen kann. Ein Prediction Modell für die einzelnen Kundengruppen führt daher zur zuverlässigeren Vorhersage der Kaufkraft der entsprechenden Gruppe und beatwortet z.B. die Frage, ob es sich lohnt in Werbung für  diese Gruppe zu investieren.
+Der Vergleich aller 5 Modelle Zeigt, dass fuer die allgemeinen Modelle das Random Forest Modell am besten performt. Segmentiert man den Datensatz in maennliche und weibliche Customer und erstellt zwei separate Modelle, verbessert sich der RMSE jeweils noch mehr. 
+In den obigen Boxplots ist zu sehen, dass bei m?nnlichen Customers in der Alterklasse 26-35 zwar eine besonders grosse Anzahl von Purchases vorkommen, diese sich aber im Mean von den anderen Alterklassen nicht mehr so stark unterscheiden. Daher ist anzunehmen, das in dieser Alterklasse eine besonder hohe Varianz zu erwarten ist, die durch das lineare Modell nicht ausreichend repraesentiert wurde. 
+Eine Segmentierung der Customer macht dahingegen Sinn, da man im Internet & Social Media die Personengruppe, der gezielt Werbung vorgespielt wird teilweise sehr genau eingrenzen kann. Ein Prediction Modell fuer die einzelnen Kundengruppen fuehrt daher zur zuverlaessigeren Vorhersage der Kaufkraft der entsprechenden Gruppe und beatwortet z.B. die Frage, ob es sich lohnt in Werbung fuer  diese Gruppe zu investieren.
+
+
+
+
+
+
+
+
+
 
 
 
