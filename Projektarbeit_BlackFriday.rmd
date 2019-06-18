@@ -1,0 +1,974 @@
+---
+title: "Preprocessing"
+author: "Christoph Rabensteiner, Valentin Muhr"
+date: "10 6 2019"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warning=F, message=F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Projektarbeit für Algorithmik & Statistik für Data Science 2 Lab
+
+##Black Friday - eine statistische Analyse der Verkaufszahlen 
+
+Christoph Rabensteiner: 1810837995 
+
+Valentin Muhr: 1810837102 
+
+Magdalena Breu: 1810837995 
+
+Jochen Paul Hollich: 1810837475 
+
+
+#Einleitung
+
+##Beschreibung des Datensatzes
+
+Der Datensatz Black Friday enthält Daten über den Warenkorb von Kunden bei einem Onlineshop. Im Datensatz befinden sich 537577 Beobachtungen für 12 Variablen, u.a. Geschlecht, Alter, Beruf, Beziehungsstatus und Kaufkraft. Die Variablen Age, Occupation, City_Category, Stay_In_Current_City_Years Product_Categories sind als Faktoren codiert. Die genauen Definitionen der einzelnen Faktoren (z.B. City_Category A,B & C) sind nicht genau definiert. Dafür schauen wir uns alle Variablen genauer an.
+
+##Hintergrundinformationen zum Datensatz
+
+Der Datensatz wurde bereitgestellt durch einen Hackathon der Firma Analytics Vidhya (https://datahack.analyticsvidhya.com/contest/black-friday/) und heruntergeladen über Kaggle.com (https://www.kaggle.com/mehdidag/black-friday).
+
+## Aufbau dieser Arbeit
+
+Unser Ziel ist es das Konsumverhalten der Kunden genauer zu analysieren. Dafür schauen wir uns als erstes die Daten genauer an und versuchen anhand der erstellten Plots, die Zusammenhänge zwischen den einzelnen Variablen zu erkennen. 
+
+Auf diesem Wissen aufbauend werden wir verschiedene ausgewählte Modelle berechnen und analysieren. Mit dem Modellen möchten wir die Ausgaben der Kunden anhand der Prädiktoren vorhersagen können.
+
+
+```{r, warning=F, message=F}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(caret)
+library(neuralnet)
+library(dplyr)
+library(tidyr)
+library(scales)
+library(grid)
+library(gridExtra)
+library(plotly)
+library(RColorBrewer)
+library(fastDummies)
+library(ggcorrplot)
+library(reshape2)
+```
+
+#Laden der Daten
+```{r}
+set.seed(10091212)
+bf <- read.csv2("BlackFriday.csv", dec=".", header=TRUE, sep=",")
+```
+
+Zusammenfassung der Daten:
+```{r}
+summary(bf)
+```
+
+Struktur der Daten
+```{r}
+str(bf)
+```
+##Beschreibung der Daten:
+
+In der Tabelle gibt es insgesamt 12 verschiedene Variablen, die folgend erklärt werden:
+
+`User_ID`: eindeutige ID eines Kunden
+
+`Product_ID`: eindeutige ID eines Produktes
+
+`Gender`: Geschlecht des Kunden
+
+`Age`: Altersgruppe des Kunden
+
+`Occupation`: Beschäftigungsgruppe des Kunden
+
+`City_Category`: Wohnort des Kunden
+
+`Stay_In_Current_City_Yeas`: Anzahl der Jahre seitdem der Kunde in der Stadt wohnt
+
+`Marital_Status`: Ehestatus
+
+`Product_Category_1`: Produktkategorie des Einkaufs
+
+`Product_Category_2`: Produkt könnte dieser Kategorie angehören
+
+`Product_Category_3`: Produkt könnte dieser Kategorie angehören
+
+`Purchase`: Summe des Einkaufs
+
+
+#Bereinigung der Daten
+
+Im Folgenden überprüfen wir die Anazhl der NAs je Feature. 
+```{r, echo=F}
+NullValues <- c(
+  sum(is.na(bf$User_ID)),
+  sum(is.na(bf$Product_ID)),
+  sum(is.na(bf$Product_ID)),
+  sum(is.na(bf$Gender)),
+  sum(is.na(bf$Age)),
+  sum(is.na(bf$Occupation)),
+  sum(is.na(bf$City_Category)),
+  sum(is.na(bf$Stay_In_Current_City_Years)),
+  sum(is.na(bf$Marital_Status)),
+  sum(is.na(bf$Product_Category_1)),
+  sum(is.na(bf$Product_Category_2)),
+  sum(is.na(bf$Product_Category_3)),
+  sum(is.na(bf$Purchase))
+)
+NullValues
+```
+Bei der Überprüfung der NAs fällt uns auf, dass wir nur in der Product Category 2 & 3 NAs-Werte enthalten haben. Wir gehen davon aus, dass von dieser Kategorie nichts gekauft wurde und ersetzen die Werte mit 0.
+
+
+Die NAs-Werte werden mit 0 ersetzt. Zusätzlich werden die Produktkategorien von Numeric in Integer umgewandelt:
+```{r}
+bf[is.na(bf)] <- 0
+bf$Product_Category_3 <- as.integer(bf$Product_Category_3)
+bf$Product_Category_2 <- as.integer(bf$Product_Category_2)
+```
+
+Ausgabe der neuen Datenstruktur ohne die NULL-Werte:
+```{r, echo=F}
+str(bf)
+```
+
+#Deskriptive Analyse - Die Erkundung unserer Daten. 
+
+Bevor wir mit dem Modellieren beginnen, wollen wir unsere Daten genauer betrachten und verschiedenste Analysen aufstellen.
+
+Häufigkeiten von `User_ID`, `Product_ID` und `Occupation`:
+
+```{r, echo=F, fig.width = 5, fig.height= 1}
+unique <- data.frame(c(
+    length(unique(bf$User_ID)),
+    length(unique(bf$Product_ID)),
+    length(unique(bf$Occupation))
+    ))
+
+rownames(unique) <- c('User_ID', 'Product_ID', 'Occupation')
+colnames(unique) <- c('Anzahl eindeutiger Variablen')
+grid.arrange(tableGrob(unique))
+
+```
+
+
+Bei der Ausgabe der Datenstruktur sehen wir, dass die USER_ID mehrmals vorkommt, d.h. ein Kunde hat auch mehrfach Einkäufe getätigt. Insgesmt haben wir zwar 537.577 verschiedene Einkäufe. Diese wurden aber von 5.891 verschiedenen Kunden getätigt. Zudem wurden insgesamt 3.623 verschiedene Artikeln gekauft.
+Die Kunden sind in insgesamt 21 verschiedenen Berufsgruppen zugeordnet. Wir analysieren deshalb später, welche Berufsgruppe die Konsumfreudigsten sind.
+
+##Geschlecht
+
+Im Folgenden sehen wir uns die Verteilung der Geschlechter genauer an. 
+```{r, echo=F}
+options(scipen = 10000)
+Geschlecht_Subset = bf %>%
+                    select(User_ID, Gender) %>%
+                    group_by(User_ID) %>%
+                    distinct()  
+Geschlechterverteilung  = ggplot(data =Geschlecht_Subset) +
+                          geom_bar(mapping = aes(x = Gender, y = ..count.., fill = Gender)) +
+                          labs(y='Anzahl', x='Geschlecht', title = 'Geschlechterverteilung der Kunden') + 
+                          scale_fill_brewer(palette = 'Paired')
+Geschlechterverteilung
+```
+
+Summe der Geschlechter:
+
+```{r,echo=F}
+summary(Geschlecht_Subset$Gender)
+```
+
+Wir haben insgesamt 1.666 weibliche und 4.225 männliche Kunden. Da wir weitaus mehr männliche Kunden haben, rückschließen wir, dass das Geschäft für männliche Käufer ausgelegt bzw. attraktiver gestaltet wurde und weibliche Konsumenten weniger anspricht.  Geleichzeitig können wir aber auch sagen, dass wir einen unbalanzierten Datensatz haben, da die männlichen Konsumenten 3-mal öfters vorkommen als die weiblichen. 
+
+Wir interessieren uns auch dafür, wie die Verteilung der Warenkörbe zwischen den Geschlechten aussieht. Dafür gruppieren wir zuerst alle Einkäufe pro Kunden und geben die Summe der Einkäufe pro Geschlecht wieder:
+```{r, fig.width = 5, fig.height= 1}
+Purchase_Male <- subset(bf, bf$Gender=='M')
+Purchase_Female <- subset(bf, bf$Gender=='F')
+count_male = length(unique(Purchase_Male$User_ID))
+count_female = length(unique(Purchase_Female$User_ID))
+average_male=sum(Purchase_Male$Purchase)/count_male
+average_female=sum(Purchase_Female$Purchase)/count_female
+gender_split = data.frame(c("Male","Female"), 
+                          c(sum(Purchase_Male$Purchase), sum(Purchase_Female$Purchase)),
+                          c(count_male,count_female),
+                          c(average_male,average_female))
+
+colnames(gender_split) <- c("Gender","Total Purchase", "Count","Average")
+grid.arrange(tableGrob(gender_split))
+```
+
+
+Boxplot der Einkäufe nach Geschlecht:
+
+
+```{r, echo=F}
+bf %>% ggplot(aes(x=Gender, y=Purchase, fill=Gender))+geom_boxplot() + scale_fill_brewer(palette = 'Paired') +labs(x='Geschlecht', y='Einkäufe')
+
+```
+
+In unserem Boxplot erkennen wir, dass es Ausreißer nach oben gibt. Allgemein gilt es sich zu überlegen, ob Ausreißer aus dem Datensatz entfernt werden sollen oder nicht. 
+Wir entscheiden uns die Ausreißer nicht zu entfernen, da wir annehmen, dass an einem Black Friday Event Ausreißer sehr wohl vorkommen können. Die Verteilung der Einkäufe nach Geschlecht ist ungefähr gleich.
+
+
+```{r,echo=F}
+ggplot(data=gender_split) + geom_bar(mapping=aes(x=Gender,y=Average, fill=Gender), stat='identity') +
+  labs(x='Geschlecht', y='Durchschnitt',title = "Durchschnittle Ausgaben je Geschlecht") + scale_fill_brewer(palette = 'Paired')
+```
+
+Im Druchschnitt geben männliche Kunden mehr als weibliche Kunden aus. Es kaufen weniger Frauen im Shop ein als Männer und sie kaufen im Verhältnis pro Einkauf weniger als die männlichen Kunden. Im Druchschnitt geben Männer 911.963,2 aus, das sind im Schnitt 30% mehr als bei den Frauen. Die Währung ist uns nicht bekannt. Auf das Konto der Männer gehen insgesamt 4255 von insgesamt 5891 Einkäufen, das entspricht 72% aller Einkäufe.
+
+##Produkte
+
+Auch die Produkte sehen wir uns genauer an. Als erstes geben wir die zehn häufigsten gekauften Produkte aus:
+
+```{r, fig.width = 5, fig.height= 3}
+bestverkaufte_Produkte = bf %>%
+                          count(Product_ID, sort=T)
+grid.arrange(tableGrob(head(bestverkaufte_Produkte,10)))
+```
+
+Das am meisten verkaufte Produkt ist P00265242 und zwar mit einer Anzahl von insgesamt 1.858 Stück.
+
+```{r}
+bestes_Produkt = bf[bf$Product_ID=='P00265242',]
+head(bestes_Produkt)
+```
+
+In der Tabelle wird ersichtlich, dass das Produkt in die Product_Category_1 = 5 und in Product_Category_2=8 fällt. Die Bedeutung der Nummer in den Produktkategorie Spalten ist nicht bekannt. Da dieselbe Produktnummer in verschiedene Produktkategorien fällt, nehmen wir an, dass die Produkt_ID nicht für das Produkt einzigartig ist. Es fällt auf, dass es für dasselbe Produkt unterschiedliche Preise bezahlt wurden.
+
+Im weiteren betrachten wir, ob es einen Zusammenhang zum bestverkauften Produkt und den Geschlecht gibt:
+
+```{r,echo=F}
+ggplot(bestes_Produkt) + geom_bar(mapping = aes(x=Gender, y=..count..,fill=Gender)) + 
+  labs(x='Geschlecht', y='Anzahl',title= "Verteilung des Geschlechts am meistverauften Produkt") +
+  scale_fill_brewer(palette = 'Paired')
+```
+
+Es fällt auf, dass die Verteilung der Geschlechter am meistverkauften Produkt ähnlich aussieht, wie die Verteilung der Geschlechter auf alle Produkte. Deshalb stellen wir die Verteilungen nochmal gegenüber:
+
+```{r,echo=F}
+ggplot_best = ggplot(bestes_Produkt) + geom_bar(mapping=aes(x=Gender,y=..prop..,group=1,fill = factor(..x..))) + 
+labs(x='Geschlecht', y='Verhältnis', title='Geschlechterverteilung \n- bestes Produkt') + scale_fill_brewer(palette = 'Paired')
+
+ggplot_all = ggplot(Geschlecht_Subset) + geom_bar(mapping=aes(x=Gender,y=..prop..,group=1,fill = factor(..x..))) + labs(x='Geschlecht', y='Verhältnis', title='Geschlechterverteilung \n- aller Produkte') + scale_fill_brewer(palette = 'Paired')
+
+grid.arrange(ggplot_best  + theme(legend.position="none") , ggplot_all  + theme(legend.position="none"), ncol=2)
+```
+
+Wir sehen bei der Gegenüberstellung sofort, dass die Verteilung der Geschlechter am bestverkauften Produkt gegenüber alle Produkte sehr ähnlich sind. Daraus schließen wir, dass das bestveraufte Produkt keinem Geschlecht mehr anspricht. Das Verhältnis der Geschlechter beim meistverkauften und über alle Produkte liegt bei 25% für weiblich und 75% für männlich.
+
+##Berufsgruppe
+
+Im Histogramm sehen wir, dass die erste Berufgruppe am Häufigsten vorkommt, gefolgt von der vierten und siebten Berufsgruppen:
+
+```{r, echo=F}
+# Ereiterung der Farbpalette
+colourCount = length(unique(bf$Occupation))
+getPalette = colorRampPalette(brewer.pal(9, "Paired"))
+x <- as.factor(bf$Occupation)
+ggplot(bf) +
+  geom_bar(aes(factor(x), fill=factor(Occupation), binwidth=1)) +
+  #geom_bar(aes(factor(Occupation), fill=factor(Occupation), binwidth=1)) +
+  labs(title="Histogramm der Berufsgruppen",x="Berufsgruppen", y = "Häufigkeit") + 
+scale_fill_manual(values = getPalette(colourCount))
+
+```
+
+Wir interessieren uns für die Summe der Einkäufe der einzelnen Berufsgruppen:
+
+```{r, echo=F}
+Occupation_PurchaseAmount <- bf %>% group_by(Occupation) %>% summarise(SummeEinkauf = sum(as.numeric(Purchase)))
+
+Occupation_PurchaseAmount$Occupation <- as.factor(Occupation_PurchaseAmount$Occupation)
+
+ggplot(Occupation_PurchaseAmount, mapping = aes(x=Occupation, y=SummeEinkauf, fill=Occupation)) + 
+  geom_col() + 
+  scale_fill_manual(values = getPalette(colourCount)) +
+  labs(x='Berufsgruppen', y='Summe der Einkäufe')
+```
+
+Die Summe der Einkäufe ist bei der Berufsgruppe 0, 4 und 7 am höchsten.
+
+Wir insteressieren uns dafür, wie die einzelne Verteilung der Produkt Kategorien zwischen männlichen und weiblichen Kunden aussieht, bzw ob Kategorie 2 und 3 von Männern oder Frauen öfters gekauft wurde.
+
+```{r, echo=F, fig.width = 5, fig.height= 1}
+cat1_male=as.integer(sum(Purchase_Male$Product_Category_1)/count_male)
+cat1_female=as.integer(sum(Purchase_Female$Product_Category_1)/count_female)
+cat2_male=as.integer(sum(Purchase_Male$Product_Category_2)/count_male)
+cat2_female=as.integer(sum(Purchase_Female$Product_Category_2)/count_female)
+cat3_male=as.integer(sum(Purchase_Male$Product_Category_3)/count_male)
+cat3_female=as.integer(sum(Purchase_Female$Product_Category_3)/count_female)
+cat_split = data.frame(c(cat1_male,cat1_female), 
+                          c(cat2_male,cat2_female),
+                          c(cat3_male,cat3_female))
+colnames(cat_split) <- c("Kategorie1","Kategorie2", "Kategorie3")
+rownames(cat_split)<- c("Male","Female")
+grid.arrange(tableGrob(cat_split))
+```
+
+Im Durchschnitt kaufen Männer in allen 3 Kategorien mehr ein (jeweils 12%, 20%, 38% mehr). Wir interpretieren daraus, dass die Produkte generell mehr mänliche Kunden anspricht. Speziell Kategorie 2 und 3 wurde gehäuft von Männern eingekauft und könnte ein Indiz dafür sein, dass die Zielgruppe für Kat 2 und 3 eher die Männer sind.  
+
+##Alter
+
+Als nächsten betrachten wir das Alter unserer Kunden in einer Tabelle: 
+
+
+```{r, echo=F, fig.width = 5, fig.height= 3}
+ages = bf %>%
+  select(User_ID, Age) %>%
+  distinct() %>%
+  count(Age)
+grid.arrange(tableGrob(ages))
+```
+
+
+Geplottet sieht die Verteilung folgendermaßen aus:
+
+```{r, echo=F}
+ggplot(data=ages) + geom_bar(mapping=aes(x=Age,y=n, fill=Age), stat='identity') +
+  labs(x='Altersgruppe', y='Anzahl', title = "Anzahl der Kunden je Altersgruppe")+ scale_fill_brewer(palette = 'Paired')
+```
+
+
+In der Grafik wird ersichtlich, dass die meisten Käufer zwischen 26-35 und 36-45 Jahre alt sind.
+
+# Wohnort
+
+In diesem Teil beschäftigen wir uns mit der Analyse des Wohnortes unserer Kundne und gehen auf folgende Fragen ein:
+
+- Wo leben unsere Kunden?
+
+- Welche Kunden generieren den größten Umsatz?
+
+- Welche Kunden generieren den größten Absatz?
+
+- Wieviel trägt das Best-Verkaufste Produkt zu dem Gesamtumsatz in einem Wohnort bei?
+
+
+```{r, echo = F}
+cust_Wohnort = bf %>% select (User_ID, City_Category) %>% distinct()
+
+ggplot_Wohnort = ggplot(cust_Wohnort) + 
+geom_bar(mapping=aes(x=City_Category, y=..count.., fill= City_Category))+labs(y='Anzahl', x='Wohnort',title='Wohnort  \nder Kunden')+ scale_fill_brewer(palette = 'Paired')
+
+
+```
+
+
+```{r,echo=F}
+Summe_Einkauf_Wohnort = bf %>% group_by(City_Category) %>% summarise(Purchases = sum(Purchase))
+
+ggplot_SummeEkWohnort = ggplot(Summe_Einkauf_Wohnort, aes(x=City_Category, y=Purchases, fill=City_Category)) + 
+geom_bar(stat='identity') + 
+labs(y='Summe der Einkäufe (monetär)', x='Wohnort',title='Summe der Einkäufe nach \nWohnort (monetär)')+ scale_fill_brewer(palette = 'Paired')
+
+
+```
+```{r, echo =F, fig.width = 5, fig.height= 1}
+Summe_Einkauf_Wohnort = bf %>%
+                  group_by(City_Category) %>%
+                  summarise(Purchases = sum(Purchase))
+
+Summe_Einkauf_Wohnort_Tabelle = Summe_Einkauf_Wohnort %>%
+                  mutate(Summe_Einkauf_Wohnort = Summe_Einkauf_Wohnort$Purchases / 1000)
+
+
+```
+
+
+```{r,echo=F}
+
+grid.arrange(ggplot_Wohnort + theme(legend.position="none"), ggplot_SummeEkWohnort + theme(legend.position="none"), ncol=2)
+```
+ 
+
+Obwohl die meisten Kunden aus `Wohnort C` stammen, haben die Kunden aus `Wohnort B` in Summe deutlich mehr für ihre Einkäufe ausgegeben, was anhand der oberen Grafiken  ersichtlich ist. 
+
+
+Im Weiteren wollen wir uns näher mit eben diesem Phänomen beschäftigen, dazu betrachten wir  die Anzahl der Artikel die in den Wohnorten erstanden hat.
+
+```{r, echo = F}
+KundeMitWarenAnzahl = bf %>%
+              group_by(User_ID) %>%
+              count(User_ID)
+
+```
+
+
+```{r, echo = F}
+KundeMitWarenAnzahlMitStadt =  bf %>%
+                    select(User_ID, City_Category) %>%
+                    group_by(User_ID) %>%
+                    distinct() %>%
+                    ungroup() %>%
+                    left_join(KundeMitWarenAnzahl, KundeMitWarenAnzahlStadt, by = 'User_ID') 
+#head(KundeMitWarenAnzahlMitStadt)
+
+AnzahlEinkaeufeJeStadt= KundeMitWarenAnzahlMitStadt  %>%
+                        select(City_Category, n) %>%
+                        group_by(City_Category) %>%
+                        summarise(AnzahlArtikelJeStadt = sum(n))
+#AnzahlEinkaeufeJeStadt
+
+ggplotAnzahlEinkaeufeJeStadt = ggplot(data = AnzahlEinkaeufeJeStadt, aes(x = City_Category, y = AnzahlArtikelJeStadt, fill = City_Category)) +
+                              geom_bar(stat='identity') +
+                              labs(y='Summe der Artikel', x='Wohnort',title='Summe der Artikel \nnach Wohnort') +
+                              scale_fill_brewer(palette = 'Paired')
+#ggplotAnzahlEinkaeufeJeStadt                            
+
+
+```
+
+
+```{r,echo=F}
+grid.arrange(ggplotAnzahlEinkaeufeJeStadt + theme(legend.position="none"), ggplot_SummeEkWohnort + theme(legend.position="none"), ncol=2)
+```
+
+Aus der oberen Gegenüberstellung ist ersichtlich dass der `Wohnort B` am meisten Waren an diesem Tag umgesetz hat. Dies spiegelt sich auch in den Summen aller Einkäufe im Bezug zu den Wohnorten wieder. Damit kann nicht behauptetet werden dass Die Kunden aus `Wohnort B` ausschließlich hochpreisige Produkte gekauft hätten, das beobachtete Peak wäre auch zu erklären wenn die Kunden eine größere Anzahl an Waren umgesetzt hätten.
+ 
+    
+
+
+Im weiteren Verlauf wollen wir nun das best-verkaufteste Produkt je Wohnort ermitteln. Dazu greifen wir auf die bereits existierende Information "bestes_Produkt" zurück. 
+
+```{r, echo = F, fig.width = 5, fig.height= 1}
+#bestes_Produkt
+best_Prod_Stadt = bestes_Produkt %>%
+                    select(User_ID, City_Category) %>%
+                    distinct() %>%
+                    count(City_Category)
+```
+
+
+```{r,echo=F}
+ggplotBestesProdJeStadt = ggplot(data = best_Prod_Stadt, aes(x = City_Category, y = n, fill = City_Category)) +
+geom_bar(stat='identity') +
+labs(y='Anzahl Verkauf Bestes Produkt je Stadt', x='Wohnort',title='Anzahl Verkauf \nBestes Produkt je Stadt') +
+scale_fill_brewer(palette = 'Paired') 
+
+grid.arrange(ggplot_SummeEkWohnort  + theme(legend.position="none"),ggplotBestesProdJeStadt + theme(legend.position="none"), ncol = 2)
+```
+
+Mit der oberen Auswertung ist ersichtlich, dass zwar `Wohnort B` den meisten Usatz generiert. Dennoch wird das best-verkaufteste Produkt unerwarteterweise am Häufigsten in `Wohnort C` verkauft.
+
+
+# Kunden an einem spezifischem Wohnort
+
+Im nächsten Schritt analysieren wir die Kundengruppe und der Aufenthalt am gegenwärtigen Wohnort genauer. Diese Information kann als Grundlage für die Analyse welche Produkte welchem Kunden in welcher Lebenssituation am besten vorgeschlagen werden verwendet werden.
+Dazu betrachten wir zunächst wielange alle unsere Kunden an Ihrem gegenwärtigen Wohnistz leben:
+
+```{R, fig.width = 5, fig.height= 1, include=FALSE}
+Kunde_Wohnzeit = bf %>%
+                    select(User_ID, City_Category, Stay_In_Current_City_Years) %>%
+                    group_by(User_ID) %>%
+                    distinct()
+```
+
+```{r, echo = F}
+ggplot_KundeWohnzeit = ggplot(data = Kunde_Wohnzeit, aes(x = Stay_In_Current_City_Years, y = ..count.., fill = Stay_In_Current_City_Years)) +
+                              geom_bar(stat = 'count') +
+                              scale_fill_brewer(palette = 'Paired') +
+                              labs(title = 'Bisheriger Verbleib am Wohnort', y = 'Summe', x = 'Verbleib in der gegenwärtigen Stadt', fill = 'Anzahl Jahre am Wohnort')
+ggplot_KundeWohnzeit
+```
+
+Anhand der oberen Grafik ist abzulesen, dass die meisten Kunden an ihrem jeweiligen Standort gegenwärtig 1 Jahr leben, jedoch bezieht sich diese Inforamtion auf alle drei Wohnorte kummoliert. Eine Erklärung wäre, dass alle drei Wohnorte vor einem Jahr eine einen starken "Zuzug" erlebt hatten. Eine alternative Interpretation kann aber auch sein, dass in diesen Wohnorten die meisten Bürger nach einem Jahr erneut umziehen. Dies ist jedoch mit den gegebenen Daten nicht eindeutig bestimmbar.
+
+Dennoch analysieren wir das obere Phänomen etwas granularere betrachten indem wir den Verbleib am bisherigen Wohnort nach den Städten aufteilen  
+
+```{r, echo =F}
+wohnzeit_stadt = Kunde_Wohnzeit %>%
+                group_by(City_Category, Stay_In_Current_City_Years) %>%
+                tally() %>%
+                mutate(Percentage = (n/sum(n))*100)
+# head(wohnzeit_stadt)
+
+ggplot_wohnzeit_stadt = ggplot(data = wohnzeit_stadt, aes(x = City_Category, y = n, fill = Stay_In_Current_City_Years)) + 
+    geom_bar(stat = "identity", color = 'white') + 
+    scale_fill_brewer(palette = 'Paired') +
+    labs(title = "Verbleib am Wohnort in Abhängigkeit zum Wohnort", 
+            y = "Summe aller Bewohner", 
+            x = "Wohnort", 
+            fill = "Verbleib in Jahren")
+ggplot_wohnzeit_stadt
+```
+
+
+Durch die Aufteilung ist zu erkennen, dass in allen drei Wohnorten die größte Bürgergruppe diejenige ist, welche gegenwärtig 1 Jahr ihren Wohnsitz dort gemeldet hat. Ob dies ein gegenwärtiger Trend is lässt sich mit der gegebenen Datenlage nicht genauer beschreiben.
+
+
+#Feature Engineering
+
+Wir schauen uns nochmal die Struktur der Daten an. Dabei fällt uns auf, dass manche Features noch nicht im richtigen Format sind.
+```{r, echo=F}
+str(bf)
+```
+Im folgenden restrukturieren wir unsere Daten. Die meisten Prädiktoren werden zu faktorielle Variablen umgewandelt. Die Produktkategorien werden als Integer belassen.
+```{r}
+bf$User_ID <- as.factor(bf$User_ID)
+bf$Occupation <- as.factor(bf$Occupation)
+bf$Marital_Status <- as.factor(bf$Marital_Status)
+str(bf)
+```
+
+Die nicht-nummerischen Variablen Gender und City-Category werden in Dummy-Variablen codiert. Die ursprünglichen Variablen `Gender`und `City_Category` werden entfernt.
+```{r}
+bf_cor <- bf
+bf_cor <- fastDummies::dummy_cols(bf_cor, select_columns = c("Gender", "City_Category"))
+bf_cor$Gender = NULL
+bf_cor$City_Category = NULL
+```
+
+## Visualisierung der Korrelationen anhand der Heatmap
+
+```{r, echo=T, fig.height=15, fig.width=15}
+bf_int <- bf_cor
+bf_int[] <- lapply(bf_int,as.integer)
+cormat <- round(cor(bf_int),2)
+ggcorrplot(cormat, lab=T)
+```
+
+In unserem Datensatz finden wir nur sehr schwache Korrelationen zwischen unseren Variablen. Die Variablen `Gender_M`und `Gender_F` korrelieren selbstverständlich negativ, da sie sich von Natur aus ausschließen. Eine schwache positive Korrelation ist zwischen `Purchase` und `Product_Category_3` zu erkennen, was uns sagt, dass mehr Geld für Produkt 3 ausgegeben wurde. Umgekehrt haben wir eine schwache negative Korrelation zwischen zwischen 'Purchase' und `Product_Category_1`, also weniger Geld das für Produkt 1 ausgegeben wurde. Es könnte entweder bedeuten, dass Produkte der Kategorie 3 einfach teurer sind als Produkte der Kategorie 1 oder, dass Produkte der Kategorie 3 öfter gekauft wurden als die der Kategorie 1. Auch zu erkennen ist die schwache negative Korrelation zwischen Kategorie 1 und 3, was darauf schließen lässt, dass wenn Produkte aus Kategorie 1 gekauf wurden, wurden eher weniger Produkte der Kategorie gekauft. Auch weisen die `City_Category A, B, C` untereinander negative Korrelationen auf, die für uns nicht weiter wichtig sind. Die schwache Korrelation zwischen Alter und Ehestatus (z.B. ältere Leute sind eher verheiratet) ist aufgrund sozialer Eigenschaften erklärt und für uns uninteressant.
+
+#Skalierung
+```{r}
+max_data = apply(bf_int,2,max)
+min_data = apply(bf_int,2,min)
+
+scaled = data.frame(scale(bf_int, center=min_data, scale=max_data-min_data))
+summary(scaled)
+```
+
+
+Ein einfacher Scatterplot codiert nach männlichen und weiblichen Customern zeigt, dass das Volumen der einzelnen Einkaeufe realtiv uniform verteilt ist mit deutlichen Clusterin im hoch-preisigen Segment.
+
+
+```{R Data Plot, echo =F,messages = F, warnings = F}
+library(ggplot2)
+library(caret)
+library(neuralnet)
+library(reshape2)
+
+     
+ggplot(bf, aes(x=User_ID, y=Purchase, color=Gender)) + geom_point()+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+
+
+
+     
+
+
+
+Eine der Annahmen fuer ein lineares Regressionsmodell ist die Normalverteilung der Residuen. Dafuer wird das Histogram der dependent Variable Purchase betrachtet:
+
+```{R histograms,echo= F,message = F, warning = F}
+
+unscaled <- (bf_int$Purchase)
+data_hist <- data.frame(scaled$Purchase,unscaled)
+
+require(gridExtra)
+
+plt_scaled <- ggplot(data_hist, aes(x=scaled.Purchase)) + geom_histogram(color ="#E69F00",fill="white",)+theme(legend.position="none")
+plt_unscale <- ggplot(data_hist,aes(x =unscaled,)) + geom_histogram( color="#56B4E9",fill="white")+theme(legend.position="none")
+
+grid.arrange(plt_unscale, plt_scaled, ncol=2)
+```
+
+Das Histogram der Variable `Purchase` zeigt eine annähernde Normalverteilung mit einem leichten Skew nach links. Eine Skalierung des Datensatzes zeigt eine noch größere Annäherung an die Normalfunktion, deshalb wird für die folgenden Modelle im Preprocessing skaliert. 
+
+Der Datensatz enthält über 537.577 Instanzen. Da die Modellierung eines so grossen Datensatzes sehr viel Rechenkapazität beansprucht, wird mit einem Subsample von 10.000 Instanzen weitergearbeitet. Da die für uns interessante Variable `Purchase`annähernd normalverteilt ist, wird das Subsample zufällig gezogen. Da bei den unten beschriebenen Modellen Resampling durchgeführt, kann anhand des Subsamples wieder auf die ursprüngliche Verteilung des Datensatzes rückgeschlossen werden.
+
+```{R}
+bf <- bf[sample(nrow(bf), 55), ]
+
+```
+
+```{R,echo = F}
+
+ggplot(bf, aes(x=Purchase)) + geom_histogram(color ="#E69F00",fill="white",)+theme(legend.position="none")
+```
+Die Variable `Purchase` im Subsample ist immer noch normalverteilt.
+
+#Train Test Split
+
+Im Folgenden unterteilen wir den Datensatz in Training und Test Daten. 70% werden als Trainingsdaten zugeteilt, damit ausreichend viele Beobachtungen im späteren Training verarbeitet werden können. 30% werden den Testdaten zugeteilt, um ein repräsentatives Testszenario zu bilden.
+```{r}
+
+options(scipen=999)
+index <- createDataPartition(
+  y = bf$Purchase,
+  ## Purchase ist dependent Variable
+  p = .7, 
+  ##  Verhaeltnis traing - test set
+  list = FALSE
+)
+training <- bf[ index,]
+testing  <- bf[-index,]
+```
+
+
+# Modellierung des Sales Volumen
+
+Für Werbetreibende ist besonders interessant, ihre Kunden gezielt mit Werbung zu bespielen, die auf die jeweilige demographische Gruppe angepasst ist. Werden Werbeanzeigen z.B. bei Google oder Instagram gekauft, kann genau definiert werden, welchem Kundensegment die Werbung angezeigt werden soll (z.B. nur Frauen zwischen 18 und 24). Damit schon vor Schalten der Werbung untersucht werden kann, welche Kunden besonders kauffreudig sind, soll der Preis, für den der jeweilige Kunde einkaufen wird, vorausgesagt werden. 
+
+
+```{R, echo = F, results = 'hide', message = F, warning = F}
+# hier ist die Aufbereitung des df
+
+training$Product_Category_2 <- as.numeric(training$Product_Category_2)
+training$Product_Category_3 <- as.numeric(training$Product_Category_3)
+training$Product_ID <- NULL 
+training$User_ID <- NULL
+testing$Product_ID <- NULL
+testing$User_ID <- NULL
+
+```
+
+## Lineare Regression mit Resampling
+
+Als Benchmark fuer alle weiteren Modelle, wird ein einfaches lineares Modell der Variable `Purchase` gefittet. Wie oben beschrieben, wird `Purchase` skaliert. Fuer das folgende Regression wird Resampling mit 5-facher Cross-valdiation angewendet. Durch das Resampling wird die Variabilität der zu erklärenden Variable simuliert.
+
+```{R Modell mit Resampling, results = 'hide', message = F, warning = F}
+##Modell mit Resampling
+
+##resampling
+ctrl <- trainControl(method = "repeatedcv", repeats = 5) 
+
+## Model Fitting
+model_lin_regression <- train(
+  Purchase ~ ., 
+  data = training, 
+  method = "lm", 
+  preProc = c('center', 'scale'),
+  tuneLength = 15,
+  na.action = na.pass,
+  trControl = ctrl
+)
+
+#Anzeigen finales Modell
+model_lin_regression$finalModel
+
+#Prediction mit Testing Data
+pred_lin_regression <- unname(predict(model_lin_regression, testing))
+#RMSE
+lin_model_rmse <- RMSE(testing$Purchase,pred_lin_regression)
+lin_model_rmse
+
+```
+
+Der RMSE ist ziemmlich hoch. Dieser Wert soll nun in den folgenden Modellen verbessert werden. 
+
+
+## Random Forest Regression (mit Resampling)
+
+Für das folgende Modell wird ein Random Forest gefittet. Es wird derselbe Trainings- und Test-Datensatz verwendet.
+
+```{R Random Forest,message = F, warning = F}
+
+#Tuning Grid
+tune.grid <- seq(1,101, by=2)
+tune <- expand.grid(mtry = 1:10)
+
+#Random Forest Model
+model_RF <- train(
+  Purchase ~ ., 
+  data = training, 
+  method = "rf", 
+  preProc = c('center', 'scale'),
+  trControl = ctrl, 
+  na.action = na.pass,
+  tuneGrid =tune)
+
+#prediction
+pred_RF_test <- predict(model_RF,testing)
+
+#RMSE
+RF_rmse_test <- RMSE(testing$Purchase,pred_RF_test)
+RF_rmse_test
+```
+Durch dieses Modell konnte der RMSE nochmal um einiges Verbessert werden. 
+
+```{R RF Plots,message = F, warning = F,fig.align='center'}
+plot(model_RF$finalModel)
+plot(model_RF)
+```
+
+Der obere Plot zeigt, wie sehr sich der Error im Laufe der getesteten Baeume verringert.
+Der untere Plot zeigt die Verringerung des RMSE durch das Tuning der Variable `mtry`, wobei `mtry` die Anzahl der Variablen ist, die zufaellig pro Split gesamplet werden. Je hoeher `mtry` desto besser der Regressionsbaum. Als optimaler Wert fuer `mtry` wurde hier `10` gewählt. Für eine Verbesserung des RMSE könnte ein noch höherer Wert für `mtry`gewählt werden, das würde aber unsere Rechenleistung sprengen.
+
+## Modelle fuer einzelne Customer Segmente 
+
+Durch die die oben getesteten Modelle konnte die Prediction der Variable `Purchase` zwar verbessert werden, der RMSE ist aber immer noch recht hoch. Deswegen sollen fuer einzelne Customer Segmente jeweils eigene Modelle erstellt werden.
+ 
+Männliche Customers haben in jeder Altersklasse eine durchschnittlich hoehere Kaufkraft als Frauen (Frauen sind im Datensatz unterrepräsentiert; Verhältnis Männer/Frauen: 4:1,3). Besonders auffallend ist der Peak in der Altergruppe 26-35 bei der Anzahl der Purchases bei männlichen Customers, im Mean, ist dieser allerdings nicht mehr so signifikant, daher es ist mit einer hohen Varianz zu rechnen (siehe Section Despriptive Analyse: Geschlecht).
+
+Im folgenden Modell wird jeweils ein Random-Forest Modell fuer weibliche & männliche Customer erstellt.
+
+```{R Segment Modelle Trainings/Test Split,message = F, warning = F}
+#Trainings/Test Split -> subset aus dem originalen Trainings/Test Split
+fem_training <- subset(training,Gender == "F")
+fem_testing <- subset(testing,Gender == "F")
+male_training <- subset(training,Gender == "M")
+male_testing <- subset(testing,Gender == "M")
+
+```
+
+```{R Male/Female Segment Modelle, warning=F, message=F}
+
+#RF Model for Female
+RF_female <- train(
+  Purchase ~ ., 
+  data = fem_training, 
+  method = "rf", 
+  preProc = c('center', 'scale'),
+  trControl = ctrl, 
+  na.action = na.pass,
+  tuneGrid =tune)
+
+#RF Model for Male
+RF_male <- train(
+  Purchase ~ ., 
+  data = male_training, 
+  method = "rf", 
+  preProc = c('center', 'scale'),
+  trControl = ctrl, 
+  na.action = na.pass,
+  tuneGrid =tune)
+
+#Predictions
+pred_RF_female <-  predict(RF_female,fem_testing)
+pred_RF_male <- predict(RF_male,male_testing)
+
+#RMSE
+RF_rmse_female <- RMSE(fem_testing$Purchase,pred_RF_female)
+RF_rmse_male <- RMSE(male_testing$Purchase,pred_RF_male)
+
+
+```
+
+
+## Evaluierung der Modelle
+
+```{R Evaluierung,echo = F,message=FALSE,warning=F, message=F}
+
+names = c("Linear Model","Random Forest","Random Forest Female", "Random Forest Male")
+
+scores = c(lin_model_rmse,RF_rmse_test,RF_rmse_female,RF_rmse_male)
+eval = data.frame(names,scores)
+```
+
+```{R, eval graph,echo = F,warning=F, message=F}
+
+ggplot(data=eval, aes(x=names,y=scores))+geom_bar(position="stack", stat="identity")+ xlab("Model") + ylab("RMSE")+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{R eval Table, echo = F,message = F, warning = F}
+colnames(eval) <- c("Model","RMSE")
+knitr::kable(eval)
+
+```
+
+Der Vergleich aller 4 Modelle zeigt, dass für die allgemeinen Modelle das Random Forest Modell am besten performt. Segmentiert man den Datensatz in männliche und weibliche Customers und erstellt zwei separate Modelle, verbessert sich der RMSE jeweils noch mehr. 
+In den obigen Barcharts ist zu sehen, dass bei männlichen Customers in der Alterklasse 26-35 zwar eine besonders große Anzahl von Purchases vorkommen, diese sich aber im Mean von den anderen Alterklassen nicht mehr so stark unterscheiden. Daher ist anzunehmen, das in dieser Altersklasse eine besonder hohe Varianz zu erwarten ist, die durch das lineare Modell nicht ausreichend repräsentiert wurde. 
+
+Eine Segmentierung der Customer macht dahingehend Sinn, da man im Internet & Social Media die Personengruppe, der gezielt Werbung vorgespielt wird teilweise sehr genau eingrenzen kann. Ein Prediction Modell fuer die einzelnen Kundengruppen führt daher zur zuverlaessigeren Vorhersage der Kaufkraft der entsprechenden Gruppe und beatwortet z.B. die Frage, ob es sich lohnt in Werbung für diese Gruppe zu investieren.
+
+## Multilabel Klassifizierung mit Neuralnet
+
+Beim Betrachten des Scatterplots der Variable `Purchase` fällt auf, dass sich harte Grenzen im Bereich zwischen 17800 und 22000 und ab 22000 aufwärts befinden. Wir nehmen an, dass diese Usergruppen auch die realen Cluster wiederspiegeln. Diese Cluster stellen die Kunden dar, die besonders viel und extrem viel einkaufen. Der Mobile Game Markt lebt z.B. von den sogenannten 'Whales', d.h. Kunden die besonders viel Geld für Ingame-Wärungen ausgeben. Daher ist dieses Kundensegment besonders attraktiv. Der Grossteil der Kunden befinden sich im untersten Segment. 
+
+```{R plot cluster, echo = F,message = F, warning = F}
+data = read.csv2("BlackFriday.csv", dec=".", header=TRUE, sep=",")
+data <- data[sample(nrow(data), 50), ]
+
+ggplot(data, aes(x=User_ID, y=Purchase)) + geom_point(shape=1) + geom_segment(aes(x=min(User_ID),xend = max(User_ID), y = 17800,yend=17800,color ="red"))+
+geom_segment(aes(x=min(User_ID),xend = max(User_ID) , y = 22000,yend=22000,color="red"))+theme(legend.positio ="none")
+ 
+```
+  Jetzt soll ein Klassifizierungsmodell fuer die Cluster gefittet werden. Dafür wird als erstes die Variable `Purchase` in 3 Faktoren `low`,`medium`& `high` gebinnt. Im Anschluss wird ein multilable Classification Model mithilfe eines Neural Networks modelliert. 
+
+```{R clustering prep, echo = F,messages = F, warnings = F}
+
+training$Product_ID <- NULL
+training$User_ID <- NULL
+testing$Product_ID <- NULL
+testing$User_ID <- NULL
+
+```
+
+
+```{R,messages = F, warning = F}
+training$Purchase <- cut(training$Purchase,breaks=c(0,17800,22000,max(data$Purchase)), labels = c("low","medium","high"))
+testing$Purchase <- cut(testing$Purchase,breaks=c(0,17800,22000,max(data$Purchase)), labels = c("low","medium","high"))
+```
+
+
+```{R clustering prepping 1, echo = F,message = F, warning = F}
+
+dummies_training = dummyVars(" ~ .", data = training)
+data_training <- data.frame(predict(dummies_training, newdata = training))
+
+
+dummies_testing = dummyVars(" ~ .", data = testing)
+data_testing <- data.frame(predict(dummies_testing, newdata = testing))
+
+
+
+```
+
+
+```{R nn model,in_model_rmse,message = F, warning = F}
+nnmodel <- neuralnet(Purchase.low+Purchase.medium+Purchase.high ~ ., 
+                      data=data_training,
+                      hidden=c(4,3),
+                      threshold = 1,
+                      act.fct = "logistic",
+                      stepmax=1000000)
+```
+
+
+```{R NN Prediction, echo = F, results ='hide',message = F, warning = F}
+pred_nn <- predict(nnmodel, data_testing) 
+actual_value = testing$Purchase
+
+
+pred_cat <- (unname(apply(pred_nn,1,which.max)))
+prediction <- factor(pred_cat, levels = c(1, 2, 3), 
+       labels = c("low", "medium", "high"))
+cl_data <- data.frame(actual_value,prediction)
+```
+
+```{R,message = F, warning = F}
+
+confusionMatrix(actual_value,prediction)
+
+```
+
+Die Confusion Matrix zeigt die Anzahl der richtig kategorisierten Instanzen. Durch die Überrepraesentation der Kategorie `low` wurde nur wenige Instanz aus der Kategorie `medium` und gar keine aus der Kategorie `high` richtig geschätzt, was allerdings trotzdem zu einer hohen Accuracy von >90% führt.  Die Verteilung der Klassen im Verhaeltnis von 190:16:1 (low:medium:high) ist sehr unausgewogen, was zu einem hohen Bias des Modells führen kann. Auch sind die Kategorien nicht äquidistant, sonder aufgrund der visuell bestimmten Cluster gewählt worden. Da Aufgrund von Kapazitaetsproblemen, nicht der gesamte Datensatz als Trainingssatz verwendet werden konnte, koennte die Accuracy noch weiter verbessert werden, da sich die Performance von Neurnalen Netzen mit zunehmenden Trainigsdaten steigert. Für eine weiterführende Analyse sollten die Klassen ausbalanciert werden, um den Bias zu vermeiden.
+
+```{R}
+table(training$Purchase)
+
+```
+Die Verteilung der Faktoren in Purchase zeigt, dass die Kategorie `low` mit nur 26 Instanzen unterrepräsentiert ist. Bei einem balancierten Datensatz, würde man aus jeder Klasse deshalb 26 Instanzen sampeln. Das ist aber für das Training eines NN viel zu wenig. Deshalb wird wieder auf den gesamten Datensatz zurückgegriffen.
+
+```{R,echo = F}
+data = read.csv2("BlackFriday.csv", dec=".", header=TRUE, sep=",")
+data$User_ID <- NULL
+data$Product_ID <- NULL
+data[is.na(data)] <- 0
+data$Purchase <- cut(data$Purchase,breaks=c(0,17800,22000,max(data$Purchase)), labels = c("low","medium","high"))
+table(data$Purchase)
+
+```
+Jetzt befinden sich 2316 Instanzen in der Kategorie `high`. deshalb werden aus den beiden anderen Klassen jetzt 2316 Instsanzen gesamplet.
+
+
+```{R}
+low =  subset(data, data$Purchase=='low')
+medium =  subset(data, data$Purchase=='medium')
+high =  data.frame(subset(data, data$Purchase=='high'))
+
+low <- data.frame(low[sample(nrow(low), 2316), ])
+medium2 <- data.frame(medium[sample(nrow(medium), 2316), ])
+
+
+nn_data <- bind_rows(low,medium2,high)
+table(nn_data$Purchase)
+
+```
+### Trainings/Test Split für NN
+
+```{R}
+
+index <- createDataPartition(
+  y = nn_data$Purchase,
+  p = .7, 
+  list = FALSE)
+
+nn_training <- nn_data[ index,]
+nn_testing  <- nn_data[-index,]
+
+```
+
+```{R clustering prepping2, echo = F,message = F, warning = F}
+
+dummies_training = dummyVars(" ~ .", data = nn_training)
+data_training <- data.frame(predict(dummies_training, newdata = nn_training))
+
+
+dummies_testing = dummyVars(" ~ .", data = nn_testing)
+data_testing <- data.frame(predict(dummies_testing, newdata = nn_testing))
+
+
+
+```
+
+
+```{R nn model2,in_model_rmse,message = F, warning = F}
+nnmodel2 <- neuralnet(Purchase.low+Purchase.medium+Purchase.high ~ ., 
+                      data=data_training,
+                      hidden=c(10,10),
+                      threshold = 1,
+                      act.fct = "logistic",
+                      stepmax=1000000)
+```
+
+
+
+```{R NN Prediction2, echo = F, results ='hide',message = F, warning = F}
+pred_nn2 <- predict(nnmodel2, data_testing) 
+actual_value = nn_testing$Purchase
+
+
+pred_cat2 <- (unname(apply(pred_nn2,1,which.max)))
+prediction <- factor(pred_cat2, levels = c(1, 2, 3), 
+       labels = c("low", "medium", "high"))
+cl_data <- data.frame(actual_value,prediction)
+```
+
+```{R,message = F, warning = F}
+
+confusionMatrix(actual_value,prediction)
+
+```
+Die Accuracy mit den Ausbalancierte Klassen ist nun etwas niedriger. Besonders die Klassen `high` und `medium` werden gut klassifiziert, bei der Klasse `low` wird oft als `medium` klassifziert. Zuletzt wird noch gestestet, wiegut das Modell am gesamten Datensatz performt:
+
+```{R Pred gesammt, results = 'hide', echo = F}
+dummies = dummyVars(" ~ .", data = data)
+data_dummies <- data.frame(predict(dummies, newdata = data))
+
+pred_nn3 <- predict(nnmodel2, data_dummies) 
+actual_value = data$Purchase
+
+
+pred_cat3 <- (unname(apply(pred_nn3,1,which.max)))
+prediction <- factor(pred_cat3, levels = c(1, 2, 3), 
+       labels = c("low", "medium", "high"))
+cl_data <- data.frame(actual_value,prediction)
+
+
+```
+
+```{R,message = F, warning = F}
+
+confusionMatrix(actual_value,prediction)
+
+```
+Die Accuracy ist etwas gesunken auf 75%. Damit ist unser Modell gut generalisierbar.
+
+Aufgrund der Verteilung der Daten konnte keines der obigen Regressionsmodelle eine genaueren Vorhersage des Sales Volumen liefern. Das anfängliche Modell einer lineare Regression konnte durch ein Random Forest Modell sowie durch seperate Modelle fuer männliche und weibliche Customer jedoch verbessert werden. Betrachtet man allerdings das Vorhersage-Problem anstatt als eine Regression als ein Klassifizierungsproblem, kann hier eine Accuracy von über 85% erreicht werden. Die Cluster wurden hier visuell bestimmt. Ein Clustering mithilfe eines Algorithmus z.B. KNN wuerde zu einer schärferen Trennung der Cluster führen. Zur weiteren Segmentierung könnte man zu jedem der Cluster `low`, `medium` & `high` ein eigenes Regressionsmodell fitten.
